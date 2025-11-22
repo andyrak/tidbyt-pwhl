@@ -5,6 +5,9 @@ A Tidbyt app that displays live scores, game schedules, and standings for the Pr
 ## Features
 
 - **Live Game Scores**: Real-time score updates during games
+- **Team Logos**: Official PWHL team logos from HockeyTech API (cached 24 hours)
+- **Team Colors**: Full-width colored backgrounds using official PWHL team colors
+- **Winner Highlighting**: Yellow scores for winners, muted for losers (NHL Scores style)
 - **Game Status**: Period, time remaining, intermission indicators
 - **Team Filtering**: Follow your favorite team
 - **Multiple Display Modes**:
@@ -13,11 +16,11 @@ A Tidbyt app that displays live scores, game schedules, and standings for the Pr
   - Standings: Shows league standings (when available)
   - Cycle: Rotates through multiple displays
 - **Animations**: Smooth transitions between different information displays
-- **Team Colors**: Official PWHL team colors for all 8 teams
+- **Professional Layout**: NHL Scores-inspired design with logos, team colors, and clean typography
 - **Robust Caching**: Multi-tier caching with stale fallback during API outages
 - **Data Validation**: Filters invalid games and validates all API responses
 
-## Supported Teams (2025-26 Season)
+## Supported Teams (2024-25 Season)
 
 - Boston Fleet (BOS)
 - Minnesota Frost (MIN)

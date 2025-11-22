@@ -327,14 +327,18 @@ def normalize_game(raw_game):
     # Normalize team data using correct API field names
     home_team = normalize_team(
         raw_game.get("HomeLongName", ""),
+        raw_game.get("HomeCode", ""),
         raw_game.get("HomeGoals", "0"),
+        raw_game.get("HomeLogo", ""),
         "0",  # Shots not available in scorebar endpoint
         "0/0",  # PP stats not in scorebar
     )
 
     away_team = normalize_team(
         raw_game.get("VisitorLongName", ""),
+        raw_game.get("VisitorCode", ""),
         raw_game.get("VisitorGoals", "0"),
+        raw_game.get("VisitorLogo", ""),
         "0",  # Shots not available in scorebar endpoint
         "0/0",  # PP stats not in scorebar
     )
@@ -358,14 +362,16 @@ def normalize_game(raw_game):
 
     return game
 
-def normalize_team(name, score, shots, powerplay):
+def normalize_team(name, code, score, logo, shots, powerplay):
     """
     Normalize team data with type conversions.
     Handles string-to-int conversion like pwhl-remix.
 
     Args:
         name: Team name string
+        code: Team code (e.g., "TOR", "MIN")
         score: Score as string
+        logo: Logo URL string
         shots: Shots as string
         powerplay: Powerplay string (e.g., "1/3")
 
@@ -377,10 +383,14 @@ def normalize_team(name, score, shots, powerplay):
     score_int = int(score) if score else 0
     shots_int = int(shots) if shots else 0
 
+    # Use code if available, otherwise derive from name
+    abbr = code if code else get_team_abbr_from_name(name)
+
     return {
         "name": name,
-        "abbr": get_team_abbr_from_name(name),
+        "abbr": abbr,
         "score": score_int,
+        "logo": logo,
         "shots": shots_int,
         "powerplay": powerplay if powerplay else "0/0",
     }
@@ -388,6 +398,23 @@ def normalize_team(name, score, shots, powerplay):
 # ============================================================================
 # TEAM HELPERS
 # ============================================================================
+
+def get_logo(logo_url):
+    """
+    Fetch and cache team logo.
+    Follows NHL Scores pattern for logo fetching.
+
+    Args:
+        logo_url: URL to team logo
+
+    Returns:
+        Cached logo data
+    """
+    if not logo_url:
+        return None
+
+    # Cache logos for 24 hours (86400 seconds)
+    return http.get(logo_url, ttl_seconds = 86400).body()
 
 def get_team_abbr_from_name(name):
     """
@@ -497,23 +524,52 @@ def render_game_animated(game, animate, show_logos, show_period_scores):
     )
 
 def render_game_score(game, show_logos):
-    """Render the main game score display."""
-    
+    """
+    Render the main game score display.
+    Based on NHL Scores app 'colors' display mode.
+    """
     home = game["home"]
     away = game["away"]
-    
-    # Determine status text
+
+    # Determine status text and color
     status_text = get_status_text(game)
     status_color = get_status_color(game)
-    
-    # Score colors (highlight leader)
-    home_score_color = "#0f0" if home["score"] > away["score"] else "#fff"
-    away_score_color = "#0f0" if away["score"] > home["score"] else "#fff"
-    
+
+    # Score colors - yellow for winner, muted for loser (NHL Scores pattern)
+    home_score_color = "#fff"
+    away_score_color = "#fff"
+
+    if is_game_final(game):
+        if home["score"] > away["score"]:
+            home_score_color = "#ff0"  # Yellow for winner
+            away_score_color = "#fffc"  # Muted for loser
+        elif away["score"] > home["score"]:
+            away_score_color = "#ff0"
+            home_score_color = "#fffc"
+
+    # Team colors for backgrounds
+    away_team_data = TEAMS.get(away["abbr"], {})
+    home_team_data = TEAMS.get(home["abbr"], {})
+
+    away_color = away_team_data.get("color", "#222")
+    home_color = home_team_data.get("color", "#222")
+
+    # Fetch logos if available and enabled
+    away_logo = None
+    home_logo = None
+    if show_logos:
+        if away.get("logo"):
+            away_logo = get_logo(away["logo"])
+        if home.get("logo"):
+            home_logo = get_logo(home["logo"])
+
     return render.Root(
         child = render.Column(
+            expanded = True,
+            main_align = "space_between",
+            cross_align = "start",
             children = [
-                # Status bar
+                # Status bar at top
                 render.Box(
                     width = 64,
                     height = 8,
@@ -526,63 +582,127 @@ def render_game_score(game, show_logos):
                             render.Text(
                                 content = status_text,
                                 font = "CG-pixel-3x5-mono",
-                                color = status_color
-                            )
-                        ]
-                    )
+                                color = status_color,
+                            ),
+                        ],
+                    ),
                 ),
-                # Score display
+                # Away team row
                 render.Box(
                     width = 64,
-                    height = 24,
+                    height = 12,
+                    color = away_color,
                     child = render.Row(
                         expanded = True,
-                        main_align = "space_evenly",
+                        main_align = "start",
                         cross_align = "center",
                         children = [
-                            # Away team
-                            render.Column(
-                                cross_align = "center",
-                                children = [
-                                    render.Text(
-                                        content = away["abbr"],
-                                        font = "6x13",
-                                        color = TEAMS[away["abbr"]]["color"] if away["abbr"] in TEAMS else "#fff"
-                                    ),
-                                    render.Text(
-                                        content = str(away["score"]),
-                                        font = "10x20",
-                                        color = away_score_color
-                                    )
-                                ]
+                            # Logo (16px width)
+                            render.Box(
+                                width = 16,
+                                height = 16,
+                                child = render.Image(away_logo, width = 16, height = 16) if away_logo else render.Box(width = 16, height = 16),
                             ),
-                            # VS or dash
-                            render.Text(
-                                content = "-" if is_game_live(game) or is_game_final(game) else "vs",
-                                font = "5x8",
-                                color = "#666"
+                            # Team abbreviation (24px width)
+                            render.Box(
+                                width = 24,
+                                height = 12,
+                                child = render.Stack(
+                                    children = [
+                                        render.Box(width = 24, height = 12, color = "#000a"),  # Semi-transparent dark background
+                                        render.Box(
+                                            width = 24,
+                                            height = 12,
+                                            child = render.Text(
+                                                content = away["abbr"][:3],
+                                                color = away_score_color,
+                                                font = "Dina_r400-6",
+                                            ),
+                                        ),
+                                    ],
+                                ),
                             ),
-                            # Home team
-                            render.Column(
-                                cross_align = "center",
-                                children = [
-                                    render.Text(
-                                        content = home["abbr"],
-                                        font = "6x13",
-                                        color = TEAMS[home["abbr"]]["color"] if home["abbr"] in TEAMS else "#fff"
-                                    ),
-                                    render.Text(
-                                        content = str(home["score"]),
-                                        font = "10x20",
-                                        color = home_score_color
-                                    )
-                                ]
-                            )
-                        ]
-                    )
-                )
-            ]
-        )
+                            # Score (24px width)
+                            render.Box(
+                                width = 24,
+                                height = 12,
+                                child = render.Stack(
+                                    children = [
+                                        render.Box(width = 24, height = 12, color = "#000a"),  # Semi-transparent dark background
+                                        render.Box(
+                                            width = 24,
+                                            height = 12,
+                                            child = render.Text(
+                                                content = str(away["score"]) if away["score"] > 0 or is_game_live(game) or is_game_final(game) else "",
+                                                color = away_score_color,
+                                                font = "Dina_r400-6",
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+                # Home team row
+                render.Box(
+                    width = 64,
+                    height = 12,
+                    color = home_color,
+                    child = render.Row(
+                        expanded = True,
+                        main_align = "start",
+                        cross_align = "center",
+                        children = [
+                            # Logo (16px width)
+                            render.Box(
+                                width = 16,
+                                height = 16,
+                                child = render.Image(home_logo, width = 16, height = 16) if home_logo else render.Box(width = 16, height = 16),
+                            ),
+                            # Team abbreviation (24px width)
+                            render.Box(
+                                width = 24,
+                                height = 12,
+                                child = render.Stack(
+                                    children = [
+                                        render.Box(width = 24, height = 12, color = "#000a"),  # Semi-transparent dark background
+                                        render.Box(
+                                            width = 24,
+                                            height = 12,
+                                            child = render.Text(
+                                                content = home["abbr"][:3],
+                                                color = home_score_color,
+                                                font = "Dina_r400-6",
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ),
+                            # Score (24px width)
+                            render.Box(
+                                width = 24,
+                                height = 12,
+                                child = render.Stack(
+                                    children = [
+                                        render.Box(width = 24, height = 12, color = "#000a"),  # Semi-transparent dark background
+                                        render.Box(
+                                            width = 24,
+                                            height = 12,
+                                            child = render.Text(
+                                                content = str(home["score"]) if home["score"] > 0 or is_game_live(game) or is_game_final(game) else "",
+                                                color = home_score_color,
+                                                font = "Dina_r400-6",
+                                            ),
+                                        ),
+                                    ],
+                                ),
+                            ),
+                        ],
+                    ),
+                ),
+            ],
+        ),
     )
 
 def render_game_shots(game):
