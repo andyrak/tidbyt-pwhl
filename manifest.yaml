@@ -1,0 +1,7 @@
+---
+id: pwhl-scores
+name: PWHL Scores
+summary: PWHL scores & standings
+desc: Display live scores, game status, and standings for the Professional Women's Hockey League (PWHL). Shows all eight teams including Boston Fleet, Minnesota Frost, Montréal Victoire, New York Sirens, Ottawa Charge, Toronto Sceptres, Seattle Torrent, and Vancouver Goldeneyes.
+author: Andy Rakauskas
+packageName: pwhlscores
