@@ -288,8 +288,10 @@ See `REFACTORING_SUMMARY.md` for detailed architecture documentation.
 
 ## Credits
 
-- **Author**: Andy Rakauskas
-- **Architecture**: Patterns adapted from pwhl-remix reference application
+`"Everybody watches women's sports."`
+
+- **Author**: Andy Rakauskas [@andyrak](https://github.com/andyrak)
+- **Foundational Work**: This project was made possible by [Sasha Moak's](https://github.com/smoak) excellent work on [PWHL Remix](https://github.com/smoak/pwhl-remix), which provided the inspiration and basis for this app.
 - **Data Source**: HockeyTech API (publicly available PWHL data)
 - **Team Information**: Official PWHL sources
 
